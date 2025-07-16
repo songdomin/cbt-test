@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>QR 출근부 시스템</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      padding: 20px;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    .section {
+      background: #fff;
+      padding: 20px;
+      margin-bottom: 40px;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    input, button {
+      padding: 10px;
+      font-size: 16px;
+      margin: 5px 0;
+    }
+
+    #qrCanvas img {
+      margin-top: 10px;
+    }
+
+    #downloadLink {
+      display: none;
+      margin-top: 10px;
+      padding: 6px 12px;
+      background: #28a745;
+      color: #fff;
+      border-radius: 5px;
+      text-decoration: none;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      background: #fff;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: center;
+    }
+
+    th {
+      background: #eee;
+    }
+
+    #reader {
+      width: 300px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- QR 생성기 -->
+  <div class="section">
+    <h1>📌 직원 QR 코드 생성기</h1>
+    <input type="text" id="employeeId" placeholder="직원 이름 또는 ID 입력">
+    <button onclick="generateQRCode()">QR 코드 생성</button>
+    <div id="qrCanvas"></div>
+    <a id="downloadLink" download="qrcode.png">📥 QR 코드 다운로드</a>
+  </div>
+
+  <!-- 출근부 -->
+  <div class="section">
+    <h1>🕓 직원 출근부 (QR 스캔 인식)</h1>
+    <div id="reader"></div>
+    <table>
+      <thead>
+        <tr>
+          <th>직원 ID</th>
+          <th>출근 시간</th>
+          <th>퇴근 시간</th>
+        </tr>
+      </thead>
+      <tbody id="attendanceTable"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const attendanceData = {};
+
+    // QR 코드 생성
+    function generateQRCode() {
+      const id = document.getElementById("employeeId").value.trim();
+      const canvasDiv = document.getElementById("qrCanvas");
+      const downloadLink = document.getElementById("downloadLink");
+
+      if (!id) {
+        alert("직원 ID를 입력해주세요.");
+        return;
+      }
+
+      canvasDiv.innerHTML = "";
+      QRCode.toDataURL(id, { width: 200, margin: 2 }, function (err, url) {
+        if (err) return console.error(err);
+
+        const img = document.createElement("img");
+        img.src = url;
+        canvasDiv.appendChild(img);
+
+        downloadLink.href = url;
+        downloadLink.style.display = "inline-block";
+      });
+    }
+
+    // 출퇴근 기록 업데이트
+    function recordAttendance(id) {
+      const now = new Date().toLocaleTimeString();
+
+      if (!attendanceData[id]) {
+        attendanceData[id] = { checkIn: now, checkOut: "" };
+      } else if (!attendanceData[id].checkOut) {
+        attendanceData[id].checkOut = now;
+      } else {
+        alert(`[${id}] 이미 출퇴근이 완료되었습니다.`);
+      }
+
+      updateTable();
+    }
+
+    // 출근부 테이블 렌더링
+    function updateTable() {
+      const table = document.getElementById("attendanceTable");
+      table.innerHTML = "";
+
+      for (const id in attendanceData) {
+        const { checkIn, checkOut } = attendanceData[id];
+        const row = `<tr>
+                      <td>${id}</td>
+                      <td>${checkIn}</td>
+                      <td>${checkOut || "-"}</td>
+                    </tr>`;
+        table.innerHTML += row;
+      }
+    }
+
+    // QR 코드 리더기 초기화
+    const html5QrCode = new Html5Qrcode("reader");
+
+    Html5Qrcode.getCameras().then(cameras => {
+      if (cameras && cameras.length) {
+        const cameraId = cameras[0].id;
+
+        html5QrCode.start(
+          cameraId,
+          {
+            fps: 10,
+            qrbox: 250
+          },
+          qrCodeMessage => {
+            // QR 인식 시 실행
+            recordAttendance(qrCodeMessage.trim());
+          },
+          errorMessage => {
+            // console.log("인식 실패:", errorMessage);
+          }
+        );
+      }
+    }).catch(err => {
+      alert("카메라 접근 실패: " + err);
+    });
+  </script>
+
+</body>
+</html>
